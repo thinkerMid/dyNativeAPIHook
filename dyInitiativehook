@@ -1,0 +1,64 @@
+# -*- coding: utf-8 -*-
+import frida
+import sys
+
+def on_message(message, data):
+    if message['type'] == 'send':
+        print("[*] {0}".format(message['payload']))
+    else:
+        print(message)
+
+jscode = """
+    Java.perform(function () 
+    {
+        var jni_env = Java.vm.getEnv();
+        console.log(jni_env);
+        send(jni_env);
+    });
+    rpc.exports = {
+    add: function (a, b) {
+        return a + b;
+    },
+    fivegod:function(UrlString,HeaderString){
+        var str_name_so = "libmetasec_ml.so";    //要hook的so名
+        var str_name_func = "sub_13221";          //要hook的函数名
+
+        //获取函数的地址
+        var n_addr_so = Module.findBaseAddress(str_name_so); //加载到内存后 函数地址 = so地址 + 函数偏移
+        var n_addr_func = n_addr_so.add(0x13221);//指令执行的地址，不是变量所在的栈或堆;
+
+        console.log("func addr is ---" + n_addr_func);
+
+        //定义NativeFunction 等下要调用
+        var func_c_enc = new NativeFunction(n_addr_func, 'pointer', ['pointer', 'pointer']);
+        
+        //调用frida的api申请空间 填入字符串 模拟char*
+        var str_url = Memory.allocUtf8String(UrlString);
+        console.log(Memory.readCString(str_url));
+        var str_Header = Memory.allocUtf8String(HeaderString);
+        console.log(Memory.readCString(str_Header));
+        //调用so层的c函数
+        var p_str_ret = func_c_enc(str_url, str_Header);
+        console.log(p_str_ret);
+    
+        //读取字符串
+        var str_ret = Memory.readCString(p_str_ret);
+
+        //return str_ret;
+    },
+    sub: function (a, b) {
+        return new Promise(function (resolve) {
+        setTimeout(function () {
+            resolve(a - b);
+        }, 100);
+        });
+    }
+    };
+ """
+
+process = frida.get_usb_device().attach('抖音')
+script = process.create_script(jscode)
+script.on('message', on_message)
+script.load()
+print(script.exports.fivegod("https://api3-normal-c-lq.amemv.com/aweme/v1/social/count/?is_new_notice=1&source=3&second_tab_type=0&follow_tab_position=1&follow_feed_notice_type=1&follow_feed_notice_count=0&located_in_follow_feed=0&located_in_first_tab=1&address_book_access=2&manifest_version_code=150701&_rticket=1637581534324&app_type=normal&iid=2120303854233502&channel=wandoujia_lesi_1128_0427&device_type=Pixel+3+XL&language=zh&cpu_support64=true&host_abi=armeabi-v7a&uuid=990012011572044&resolution=1440*2621&openudid=d0bbc7ae4d119ff9&update_version_code=15709900&cdid=c8be4182-8a4b-4fc5-9724-e5bced11408a&appTheme=light&minor_status=0&os_api=28&dpi=560&ac=wifi&device_id=69973774713064&os_version=9&version_code=150700&app_name=aweme&version_name=15.7.0&device_brand=google&ssmix=a&device_platform=android&aid=1128&ts=1637581529", "cookie\ninstall_id=2120303854233502; ttreq=1$02ae3f3ac474aeff3f065df330edd3f048ea0a09; passport_csrf_token_default=d04a4f235bb543720ade73111ed7d44a; passport_csrf_token=d04a4f235bb543720ade73111ed7d44a; multi_sids=1041980051168759%3A71dfaea38edbcb78e238ad30887b455f; n_mh=A0L_RfSKQN2Yv5GN8hIBUZI474CokyZ990t5HEYLYYw; sid_guard=71dfaea38edbcb78e238ad30887b455f%7C1637572940%7C5184000%7CFri%2C+21-Jan-2022+09%3A22%3A20+GMT; uid_tt=d2d2544d6bb1e7e9e410da28bfb8b191; uid_tt_ss=d2d2544d6bb1e7e9e410da28bfb8b191; sid_tt=71dfaea38edbcb78e238ad30887b455f; sessionid=71dfaea38edbcb78e238ad30887b455f; sessionid_ss=71dfaea38edbcb78e238ad30887b455f; d_ticket=9e1069bcbbcdc5e5f57cdc700325d6de4f956; odin_tt=064933bf3339a4aa22ac518b0df24dcce456c59762a2994fb6f28830e8d59302944c0c04ae7f49777115fa4cd8ef9b24f0f159925ea6969f30a0aee0b0461564\nx-tt-dt\nAAAQ76EEBMZCXRWB5GVPCAK27ZJM2TBPEK4T6N6MQOT2DA3WYMKS4H3ZHNOB6ZV4QO5OYLDAKSCZI5RJAHXZIJO43LPGDR4LWOII3LI2GT2DW2FBKRN646K2M7TZIOYXOJ2GI6ODVODLTK5ZJM6P5ZI\nactivity_now_client\n1637581530429\nsdk-version\n2\nx-tt-token\n0071dfaea38edbcb78e238ad30887b455f00088e203210b083a39de6a319c91701743820fdf31e7f46c01fe3f068b9e89bf7f406deb1d48e0c9107f2beb63e84b18b920120c74dd54f294ef01154e84082bf84fe8abd80c8982d11f74b3fa3842d4bb-1.0.1\npassport-sdk-version\n18\nx-ss-req-ticket\n1637581534326\nx-bd-client-key\n7c9c76593ab7fb9b20f7fd8398f6b4adf1b08504b6118188a64e0a7825912cc084609486196db2930052c33d23c14e2f7ff21463cb983c77898fe100b34a3cd8\nx-bd-kmsv\n1\nx-vc-bdturing-sdk-version\n2.1.0.cn\nx-ss-dp\n1128\nx-tt-trace-id\n00-477735f70c3fa409fc40e88c626e0468-477735f70c3fa409-01\nuser-agent\ncom.ss.android.ugc.aweme/150701 (Linux; U; Android 9; zh_CN_#Hans; Pixel 3 XL; Build/PQ1A.190105.004; Cronet/TTNetVersion:539f4bcf 2021-01-18 QuicVersion:47946d2a 2020-10-14)\naccept-encoding\ngzip, deflate, br\nRetString"))
+process.detach()
